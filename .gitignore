@@ -1,4 +1,4 @@
-# Variables d'environnement - NE JAMAIS COMMITER
+# Variables d'environnement
 .env
 .env.*
 !.env.example
@@ -16,7 +16,6 @@ venv/
 env/
 
 # Django
-db.sqlite3
 staticfiles/
 *.log
 
