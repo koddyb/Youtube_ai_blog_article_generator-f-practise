@@ -4,11 +4,13 @@ Application web Django qui transforme automatiquement une vidéo YouTube en arti
 
 ## Comment ça marche ?
 
-1. **L'utilisateur** se connecte (ou crée un compte) et colle un lien YouTube.
-2. **yt-dlp** télécharge la piste audio de la vidéo.
-3. **AssemblyAI** transcrit l'audio en texte.
-4. **Mistral AI** rédige un article de blog structuré et optimisé SEO à partir de la transcription.
+1. L'utilisateur se connecte (ou crée un compte) et colle un lien YouTube.
+2. **YouTube oEmbed API** récupère le titre de la vidéo.
+3. **youtube-transcript-api** extrait les sous-titres directement depuis YouTube (sans téléchargement audio).
+4. **Mistral AI** rédige un article de blog structuré, engageant et optimisé SEO à partir de la transcription.
 5. L'article est sauvegardé en base de données et consultable à tout moment.
+
+> ⚠️ La vidéo doit avoir des sous-titres disponibles (générés automatiquement ou manuels). La quasi-totalité des vidéos populaires en disposent.
 
 ## Fonctionnalités
 
@@ -23,25 +25,41 @@ Application web Django qui transforme automatiquement une vidéo YouTube en arti
 | Couche | Technologie |
 |---|---|
 | Backend | Django 6 |
-| Base de données | SQLite (dev) / PostgreSQL (prod) |
-| Téléchargement audio | yt-dlp |
-| Transcription | AssemblyAI |
+| Base de données | SQLite (dev) / PostgreSQL (prod via Heroku) |
+| Titre de la vidéo | YouTube oEmbed API |
+| Transcription | youtube-transcript-api |
 | Génération de texte | Mistral AI (`mistral-small`) |
+| Serveur de production | Gunicorn + Whitenoise |
 
-## Installation
+## Installation (développement)
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Créer un fichier `.env` à la racine avec :
+Créer un fichier `.env` à la racine :
 
 ```env
-ASSEMBLYAI_API_KEY=your_assemblyai_key
+SECRET_KEY=your_django_secret_key
+DATABASE_URL=sqlite:///db.sqlite3
 MISTRAL_API_key=your_mistral_key
+DEBUG=True
 ```
 
 ```bash
 python manage.py migrate
 python manage.py runserver
+```
+
+## Déploiement sur Heroku
+
+```bash
+# Configurer les variables d'environnement
+heroku config:set SECRET_KEY=your_secret_key
+heroku config:set MISTRAL_API_key=your_mistral_key
+heroku config:set DEBUG=False
+
+# Déployer
+git push heroku main
+heroku run python manage.py migrate
 ```

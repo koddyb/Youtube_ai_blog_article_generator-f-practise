@@ -10,7 +10,6 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from mistralai import Mistral
-from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
 from .models import BlogPost
 # Create your views here.
 @login_required
@@ -72,31 +71,46 @@ def extract_video_id(url):
     return None
 
 def yt_title(link):
-    """Récupère le titre via la transcription (évite yt-dlp bloqué par YouTube)."""
+    """Récupère le titre via l'API oEmbed YouTube (sans yt-dlp, sans auth)."""
+    import requests as req
     try:
-        video_id = extract_video_id(link)
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        # Le titre n'est pas dispo via transcript API, on retourne l'ID en fallback
-        return f"YouTube Video ({video_id})"
+        r = req.get(
+            'https://www.youtube.com/oembed',
+            params={'url': link, 'format': 'json'},
+            timeout=5
+        )
+        if r.status_code == 200:
+            return r.json().get('title', 'YouTube Video')
     except Exception:
-        return "YouTube Video"
+        pass
+    video_id = extract_video_id(link)
+    return f"YouTube Video ({video_id})" if video_id else "YouTube Video"
 
 def get_transcription(link):
-    """Récupère la transcription via les sous-titres YouTube (pas de téléchargement audio)."""
+    """Récupère la transcription via les sous-titres YouTube (API v1.x)."""
+    from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
+
     video_id = extract_video_id(link)
     if not video_id:
         return None
 
+    api = YouTubeTranscriptApi()
     try:
-        # Cherche d'abord en français, puis anglais, puis n'importe quelle langue
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        # 1. Essai avec les langues préférées
         try:
-            transcript = transcript_list.find_transcript(['fr', 'en'])
+            data = api.fetch(video_id, languages=['fr', 'en'])
+            return " ".join([s.text for s in data])
         except Exception:
-            transcript = transcript_list.find_generated_transcript(['fr', 'en'])
+            pass
 
-        entries = transcript.fetch()
-        return " ".join([entry.text for entry in entries])
+        # 2. Fallback : on liste toutes les langues disponibles et on prend la première
+        transcript_list = api.list(video_id)
+        transcripts = list(transcript_list)
+        if not transcripts:
+            return None
+
+        data = transcripts[0].fetch()
+        return " ".join([s.text for s in data])
 
     except TranscriptsDisabled:
         return None
@@ -111,7 +125,7 @@ def generate_blog_from_transcription(transcription):
     
     prompt = f"""
     Tu es un rédacteur web expert. À partir de la transcription suivante, 
-    rédige un article de blog structuré, pas trop long engageant et optimisé pour le SEO.
+    rédige un article de blog structuré, engageant et optimisé pour le SEO.
     
     Instructions :
     1. Donne un titre accrocheur.
