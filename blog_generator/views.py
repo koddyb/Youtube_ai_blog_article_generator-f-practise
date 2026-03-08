@@ -109,9 +109,16 @@ def get_transcription(link):
     try:
         # Utilisation du fichier temporaire s'il a pu être créé
         if os.path.exists(cookies_path):
-            transcript_list = YouTubeTranscriptApi.list(video_id, cookies=cookies_path)
+            import requests
+            from http.cookiejar import MozillaCookieJar
+            session = requests.Session()
+            jar = MozillaCookieJar(cookies_path)
+            jar.load(ignore_discard=True, ignore_expires=True)
+            session.cookies = jar
+            api = YouTubeTranscriptApi(http_client=session)
         else:
-            transcript_list = YouTubeTranscriptApi.list(video_id)
+            api = YouTubeTranscriptApi()
+        transcript_list = api.list(video_id)
 
         try:
             transcript = transcript_list.find_transcript(['fr', 'en'])
