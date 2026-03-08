@@ -88,38 +88,51 @@ def yt_title(link):
     return f"YouTube Video ({video_id})" if video_id else "YouTube Video"
 
 def get_transcription(link):
-    """Récupère la transcription via les sous-titres YouTube (API v1.x)."""
+    """Récupère la transcription via les sous-titres YouTube avec cookies via variable d'env."""
     from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
+    from django.conf import settings
+    import os
 
     video_id = extract_video_id(link)
     if not video_id:
         return None
 
-    api = YouTubeTranscriptApi()
+    # On définit le chemin du fichier temporaire
+    cookies_path = os.path.join(settings.BASE_DIR, 'temp_cookies.txt')
+    cookies_content = os.getenv('YT_COOKIES_CONTENT')
+
+    # Si la variable existe, on crée/écrase le fichier temporaire
+    if cookies_content:
+        with open(cookies_path, 'w') as f:
+            f.write(cookies_content)
+
     try:
-        #  Essai avec les langues favorites
+        # Utilisation du fichier temporaire s'il a pu être créé
+        if os.path.exists(cookies_path):
+            transcript_list = YouTubeTranscriptApi.list(video_id, cookies=cookies_path)
+        else:
+            transcript_list = YouTubeTranscriptApi.list(video_id)
+
         try:
-            data = api.fetch(video_id, languages=['fr', 'en'])
-            return " ".join([s.text for s in data])
+            transcript = transcript_list.find_transcript(['fr', 'en'])
         except Exception:
-            pass
+            transcript = list(transcript_list)[0]
 
-        # Fallback : on liste toutes les langues disponibles et on prend la premiere
-        transcript_list = api.list(video_id)
-        transcripts = list(transcript_list)
-        if not transcripts:
-            return None
+        data = transcript.fetch()
+        
+        # Optionnel : Supprimer le fichier temporaire après usage pour plus de sécurité
+        if os.path.exists(cookies_path):
+            os.remove(cookies_path)
+            
+        return " ".join([s['text'] for s in data])
 
-        data = transcripts[0].fetch()
-        return " ".join([s.text for s in data])
-
-    except TranscriptsDisabled:
+    except (TranscriptsDisabled, NoTranscriptFound):
         return None
-    except NoTranscriptFound:
+    except Exception as e:
+        print(f"Erreur lors de la transcription : {str(e)}")
         return None
-    except Exception:
-        return None
-
+    
+    
 def generate_blog_from_transcription(transcription):
     api_key = os.getenv("MISTRAL_API_key")
     client = Mistral(api_key=api_key)
