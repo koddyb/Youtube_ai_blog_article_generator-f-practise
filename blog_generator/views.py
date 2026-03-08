@@ -119,6 +119,8 @@ def _get_transcription_ytdlp(video_id):
             '--sub-langs', 'fr,en,fr.*,en.*',
             '--sub-format', 'vtt',
             '--no-warnings',
+            '--no-check-formats',
+            '--ignore-errors',
             '-o', os.path.join(tmpdir, '%(id)s'),
         ]
 
@@ -132,9 +134,10 @@ def _get_transcription_ytdlp(video_id):
             result = subprocess.run(
                 cmd, capture_output=True, text=True, timeout=60
             )
+            # Ne pas se fier au returncode — yt-dlp peut retourner une erreur
+            # de format vidéo tout en ayant écrit les sous-titres avec succès
             if result.returncode != 0:
-                logger.warning(f"yt-dlp failed: {result.stderr[:500]}")
-                return None
+                logger.info(f"yt-dlp returncode={result.returncode}, checking for subtitle files anyway")
         except subprocess.TimeoutExpired:
             logger.warning("yt-dlp timeout")
             return None
