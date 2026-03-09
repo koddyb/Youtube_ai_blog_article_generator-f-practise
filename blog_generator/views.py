@@ -201,10 +201,19 @@ def _get_transcription_api(video_id):
 
     logger = logging.getLogger(__name__)
     cookies_path = _get_cookies_path()
-    # v1.x : les cookies se passent au constructeur, pas à fetch()/list()
+    # v1.2.x : cookies via http_client (requests.Session), pas en argument direct
     api_kwargs = {}
     if cookies_path:
-        api_kwargs['cookie_path'] = cookies_path
+        import http.cookiejar
+        import requests as req
+        cj = http.cookiejar.MozillaCookieJar(cookies_path)
+        try:
+            cj.load(ignore_discard=True, ignore_expires=True)
+            session = req.Session()
+            session.cookies = cj
+            api_kwargs['http_client'] = session
+        except Exception as e:
+            logger.warning(f"[transcript-api] Impossible de charger les cookies: {e}")
     api = YouTubeTranscriptApi(**api_kwargs)
 
     try:
