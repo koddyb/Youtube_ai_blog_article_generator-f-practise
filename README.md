@@ -1,6 +1,7 @@
 # AI Blog Generator for Youtube Videos
 
 Application web Django qui transforme automatiquement une vidéo YouTube en article de blog rédigé par une IA.
+Lien du projet https://bp-genai-e781afd10fd5.herokuapp.com/
 
 ## Comment ça marche ?
 
